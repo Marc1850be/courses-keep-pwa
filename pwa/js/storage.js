@@ -235,7 +235,7 @@
         throw new Error("Veuillez renseigner l'URL de votre Web App Google Apps Script dans les Réglages.");
       }
       // Content-Type: text/plain évite le preflight CORS OPTIONS non géré par Apps Script
-      const body = JSON.stringify({ ...payload, pin: this.config.pin || '' });
+      const body = JSON.stringify({ pin: this.config.pin || '', ...payload });
       const res = await fetch(base, {
         method: 'POST',
         redirect: 'follow',
@@ -264,8 +264,13 @@
     async verifyPin(pin) {
       if (this.config.mode === 'demo') return true;
       if (this.config.mode === 'apps-script') {
-        const res = await this._gasPost({ action: 'verify_pin', pin: pin });
-        return Boolean(res.ok);
+        try {
+          const res = await this._gasPost({ action: 'verify_pin', pin: String(pin || '').trim() });
+          return Boolean(res.ok);
+        } catch (err) {
+          if (err instanceof AuthRequiredError) return false;
+          throw err;
+        }
       }
       const url = this._keepBaseUrl() + '/api/auth/verify';
       const res = await fetch(url, {

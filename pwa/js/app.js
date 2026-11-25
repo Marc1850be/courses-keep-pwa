@@ -700,7 +700,16 @@
     };
     try {
       const info = await storage.checkHealth();
-      showToast(`Connexion réussie (mode : ${info.mode || storage.config.mode}) !`);
+      if (info.pin_required && storage.config.mode !== 'demo') {
+        const pinOk = await storage.verifyPin(storage.config.pin);
+        if (!pinOk) {
+          showToast('Serveur OK, mais le Code PIN ne correspond pas à celui configuré côté serveur.', {
+            duration: 5000,
+          });
+          return;
+        }
+      }
+      showToast(`Connexion et Code PIN validés (mode : ${info.mode || storage.config.mode}) !`);
     } catch (err) {
       showToast('Échec du test : ' + (err.message || 'serveur injoignable'), { duration: 4500 });
     } finally {
