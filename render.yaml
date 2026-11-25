@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: courses-keep-famille
+    runtime: docker
+    plan: free
+    envVars:
+      - key: GOOGLE_EMAIL
+        sync: false
+      - key: GOOGLE_MASTER_TOKEN
+        sync: false
+      - key: KEEP_LIST_ID
+        sync: false
+      - key: FAMILY_PIN
+        sync: false
+      - key: CORS_ORIGINS
+        value: "*"

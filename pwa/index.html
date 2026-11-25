@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#2D6A4F" />
+  <meta name="description" content="Liste de courses familiale synchronisée avec Google Keep et ajout vocal en un seul appui." />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>Courses Famille — Google Keep</title>
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app-shell" id="app-shell">
+    <!-- En-tête collant -->
+    <header class="app-header">
+      <div class="header-main">
+        <div class="brand-block">
+          <div class="title-row">
+            <h1 id="list-title">Liste de courses</h1>
+            <span class="mode-badge" id="mode-badge" title="Source de synchronisation">Démo</span>
+          </div>
+          <p class="sync-subtitle" id="sync-status">Prêt à synchroniser</p>
+        </div>
+
+        <div class="header-actions">
+          <a
+            id="keep-external-link"
+            class="icon-btn"
+            href="https://keep.google.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Ouvrir dans Google Keep"
+            title="Ouvrir dans Google Keep"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 18h6" />
+              <path d="M10 22h4" />
+              <path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" />
+            </svg>
+          </a>
+
+          <button id="btn-refresh" class="icon-btn" type="button" aria-label="Actualiser la liste" title="Actualiser">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <polyline points="21 3 21 9 15 9" />
+            </svg>
+          </button>
+
+          <button id="btn-share" class="icon-btn" type="button" aria-label="Partager avec la famille" title="Partager avec la famille">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+          </button>
+
+          <button id="btn-settings" class="icon-btn" type="button" aria-label="Réglages" title="Réglages">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Bannière d'installation Android PWA (affichée uniquement si installable) -->
+      <div class="install-banner hidden" id="install-banner">
+        <span>Installer sur l'écran d'accueil Android</span>
+        <div class="install-banner-actions">
+          <button id="btn-install-pwa" class="btn-primary-xs" type="button">Installer</button>
+          <button id="btn-dismiss-install" class="btn-ghost-xs" type="button" aria-label="Fermer">✕</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Contenu principal : la liste de courses -->
+    <main class="list-container" id="list-container">
+      <!-- Compteur & filtre rapide -->
+      <div class="summary-bar">
+        <span class="summary-count" id="unchecked-count">0 article à acheter</span>
+        <span class="summary-hint">1 appui micro = 1 article</span>
+      </div>
+
+      <!-- Articles à acheter -->
+      <section aria-label="Articles à acheter">
+        <ul class="shopping-list" id="unchecked-list"></ul>
+        <div class="empty-state hidden" id="empty-state">
+          <div class="empty-illustration" aria-hidden="true">
+            <svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 14h28l-3 22H13L10 14z" />
+              <path d="M17 14v-3a7 7 0 0 1 14 0v3" />
+              <path d="M19 25l4 4 7-8" />
+            </svg>
+          </div>
+          <h2>Liste vide !</h2>
+          <p>Appuyez sur le micro en bas pour dicter votre premier article.</p>
+        </div>
+      </section>
+
+      <!-- Articles cochés (Dans le panier) -->
+      <section class="checked-section hidden" id="checked-section" aria-label="Articles dans le panier">
+        <div class="checked-header">
+          <button class="checked-toggle" id="btn-toggle-checked" type="button" aria-expanded="true">
+            <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            <span id="checked-count-label">Dans le panier (0)</span>
+          </button>
+          <div class="checked-actions">
+            <button class="text-action" id="btn-uncheck-all" type="button">Tout remettre</button>
+            <button class="text-action danger" id="btn-clear-checked" type="button">Vider</button>
+          </div>
+        </div>
+        <ul class="shopping-list checked-list" id="checked-list"></ul>
+      </section>
+    </main>
+
+    <!-- Bandeau de transcription vocale en direct -->
+    <div class="voice-live-bar hidden" id="voice-live-bar" role="status" aria-live="polite">
+      <div class="voice-waves" aria-hidden="true">
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <div class="voice-live-text">
+        <strong id="voice-status-label">J'écoute… dites un article</strong>
+        <span id="voice-interim-text">Ex. « Lait demi-écrémé »</span>
+      </div>
+      <button id="btn-cancel-voice" class="voice-cancel-btn" type="button" aria-label="Annuler la dictée">Annuler</button>
+    </div>
+
+    <!-- Barre inférieure ergonomique avec bouton micro déplaçable gauche / droite -->
+    <footer class="bottom-dock" id="bottom-dock" data-mic-side="right">
+      <div class="dock-inner">
+        <!-- Zone secondaire : saisie rapide + bascule rapide gauche/droite -->
+        <div class="dock-secondary">
+          <form class="quick-add-form" id="quick-add-form" autocomplete="off">
+            <input
+              id="quick-add-input"
+              type="text"
+              placeholder="Ajouter un article…"
+              aria-label="Ajouter un article au clavier"
+              maxlength="140"
+              enterkeyhint="done"
+            />
+            <button type="submit" class="quick-add-submit" aria-label="Ajouter l'article">
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          </form>
+
+          <button
+            id="btn-flip-mic"
+            class="flip-mic-btn"
+            type="button"
+            aria-label="Déplacer le micro à gauche ou à droite"
+            title="Basculer le micro gauche / droite"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="17 8 21 12 17 16" />
+              <polyline points="7 16 3 12 7 8" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Grand bouton Micro (1 appui = 1 article ; glisser horizontalement pour changer de côté) -->
+        <button
+          id="btn-mic"
+          class="mic-fab"
+          type="button"
+          aria-label="Dicter un article"
+          aria-pressed="false"
+        >
+          <span class="mic-pulse-ring" aria-hidden="true"></span>
+          <svg class="mic-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="2" width="6" height="12" rx="3" />
+            <path d="M5 10a7 7 0 0 0 14 0" />
+            <line x1="12" y1="17" x2="12" y2="22" />
+            <line x1="8" y1="22" x2="16" y2="22" />
+          </svg>
+        </button>
+      </div>
+    </footer>
+
+    <!-- Toast de confirmation / annulation -->
+    <div class="toast hidden" id="toast" role="status" aria-live="polite">
+      <span id="toast-message"></span>
+      <button id="toast-action" class="toast-action hidden" type="button">Annuler</button>
+    </div>
+  </div>
+
+  <!-- Modale : Réglages & Préférences -->
+  <div class="modal-backdrop hidden" id="modal-settings" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal-sheet">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="sheet-header">
+        <h2 id="settings-title">Réglages & Synchronisation</h2>
+        <button class="icon-btn" data-close-modal="modal-settings" type="button" aria-label="Fermer">✕</button>
+      </div>
+
+      <form id="settings-form" class="sheet-body">
+        <div class="field-group">
+          <label class="field-label">Position du bouton micro (préférence locale)</label>
+          <div class="segmented" role="radiogroup" aria-label="Position du micro">
+            <button type="button" class="seg-btn" data-mic-choice="left">← À gauche</button>
+            <button type="button" class="seg-btn" data-mic-choice="right">À droite →</button>
+          </div>
+          <p class="field-help">Chaque membre de la famille choisit son côté sur son propre téléphone.</p>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Apparence</label>
+          <div class="segmented" role="radiogroup" aria-label="Thème">
+            <button type="button" class="seg-btn" data-theme-choice="auto">Auto</button>
+            <button type="button" class="seg-btn" data-theme-choice="light">Clair</button>
+            <button type="button" class="seg-btn" data-theme-choice="dark">Sombre</button>
+          </div>
+        </div>
+
+        <div class="field-group toggle-row">
+          <div>
+            <span class="field-label">Retour sonore & vibrations</span>
+            <p class="field-help">Bip discret et vibration tactile lors de la dictée vocale.</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="pref-feedback" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <hr class="divider" />
+
+        <div class="field-group">
+          <label class="field-label" for="cfg-mode">Source de la liste (Backend)</label>
+          <select id="cfg-mode" class="input-control">
+            <option value="keep">Google Keep (Serveur Python gkeepapi)</option>
+            <option value="apps-script">Google Apps Script + Google Sheets</option>
+            <option value="demo">Mode Démo local (hors ligne / test)</option>
+          </select>
+        </div>
+
+        <div class="field-group" id="cfg-url-group">
+          <label class="field-label" for="cfg-url">URL du serveur backend</label>
+          <input
+            id="cfg-url"
+            class="input-control"
+            type="url"
+            placeholder="Laisser vide si hébergé sur le même serveur"
+          />
+          <p class="field-help" id="cfg-url-help">
+            Ex. https://courses-keep.onrender.com (ou vide si même serveur).
+          </p>
+        </div>
+
+        <div class="field-group" id="cfg-pin-group">
+          <label class="field-label" for="cfg-pin">Code PIN familial</label>
+          <input
+            id="cfg-pin"
+            class="input-control"
+            type="password"
+            inputmode="numeric"
+            placeholder="Ex. 1234 (optionnel)"
+          />
+          <p class="field-help">Mémorisé une seule fois sur ce téléphone.</p>
+        </div>
+
+        <div class="sheet-footer">
+          <button type="button" class="btn-secondary" id="btn-test-connection">Tester</button>
+          <button type="submit" class="btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modale : Partager avec la famille -->
+  <div class="modal-backdrop hidden" id="modal-share" role="dialog" aria-modal="true" aria-labelledby="share-title">
+    <div class="modal-sheet">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="sheet-header">
+        <h2 id="share-title">Partager avec la famille</h2>
+        <button class="icon-btn" data-close-modal="modal-share" type="button" aria-label="Fermer">✕</button>
+      </div>
+
+      <div class="sheet-body">
+        <p class="share-intro">
+          Envoyez ce lien magique à vos proches. Ils n'auront <strong>aucune autorisation Google</strong> à configurer :
+          l'application se connecte automatiquement à votre liste partagée.
+        </p>
+
+        <div class="field-group toggle-row">
+          <div>
+            <span class="field-label">Inclure le Code PIN dans le lien</span>
+            <p class="field-help">Pratique sur WhatsApp familial : accès direct sans saisir le PIN.</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="share-include-pin" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="share-link-box">
+          <input id="share-link-input" class="input-control" type="text" readonly aria-label="Lien d'invitation familial" />
+        </div>
+
+        <div class="share-buttons">
+          <button id="btn-native-share" class="btn-primary" type="button">Envoyer (WhatsApp, SMS…)</button>
+          <button id="btn-copy-share" class="btn-secondary" type="button">Copier le lien</button>
+        </div>
+
+        <div class="android-tip">
+          <strong>Astuce Android :</strong> demandez à chaque membre d'ouvrir le lien dans <strong>Chrome</strong>,
+          puis de toucher <strong>⋮ → « Ajouter à l'écran d'accueil »</strong> pour l'installer comme une vraie application.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale : Déverrouillage Code PIN familial -->
+  <div class="modal-backdrop hidden" id="modal-pin" role="dialog" aria-modal="true" aria-labelledby="pin-title">
+    <div class="modal-sheet pin-sheet">
+      <div class="sheet-header">
+        <h2 id="pin-title">Code PIN familial</h2>
+      </div>
+      <form id="pin-form" class="sheet-body">
+        <p class="share-intro">Saisissez le code familial une seule fois pour connecter ce téléphone.</p>
+        <input
+          id="pin-unlock-input"
+          class="input-control pin-input"
+          type="password"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          placeholder="••••"
+          required
+        />
+        <p class="error-text hidden" id="pin-error">Code PIN incorrect.</p>
+        <div class="sheet-footer">
+          <button type="button" class="btn-secondary" id="btn-pin-settings">Réglages</button>
+          <button type="submit" class="btn-primary">Déverrouiller</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/speech.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
