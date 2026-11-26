@@ -76,11 +76,13 @@ function getOrCreateSheet_() {
     sheet.setName(SHEET_NAME);
   }
 
-  // Initialisation des en-têtes si feuille vide
+  // Initialisation des en-têtes si feuille vide (ou migration automatique vers la 6e colonne added_by)
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['id', 'text', 'checked', 'sort', 'updated_at']);
-    sheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#E8F3EE');
+    sheet.appendRow(['id', 'text', 'checked', 'sort', 'updated_at', 'added_by']);
+    sheet.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#E8F3EE');
     sheet.setFrozenRows(1);
+  } else if (String(sheet.getRange(1, 6).getValue() || '').trim() !== 'added_by') {
+    sheet.getRange(1, 6).setValue('added_by').setFontWeight('bold').setBackground('#E8F3EE');
   }
 
   return { ss: ss, sheet: sheet };
@@ -101,10 +103,16 @@ function formatText_(str) {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+function formatFirstName_(str) {
+  const cleaned = String(str || '').trim().split(/\s+/)[0] || '';
+  if (!cleaned) return '';
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
 function readAllItems_(sheet) {
   const lastRow = sheet.getLastRow();
   if (lastRow <= 1) return [];
-  const rows = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+  const rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
   const items = [];
   for (let i = 0; i < rows.length; i++) {
     const id = String(rows[i][0] || '').trim();
@@ -116,6 +124,7 @@ function readAllItems_(sheet) {
       text: text,
       checked: rows[i][2] === true || String(rows[i][2]).toUpperCase() === 'TRUE',
       sort: Number(rows[i][3]) || (rows.length - i) * 100,
+      added_by: formatFirstName_(rows[i][5] || ''),
     });
   }
   items.sort(function (a, b) {
@@ -126,7 +135,13 @@ function readAllItems_(sheet) {
 
 function buildListResponse_(ss, sheet) {
   const items = readAllItems_(sheet).map(function (it) {
-    return { id: it.id, text: it.text, checked: it.checked, sort: it.sort };
+    return {
+      id: it.id,
+      text: it.text,
+      checked: it.checked,
+      sort: it.sort,
+      added_by: it.added_by || '',
+    };
   });
   return {
     mode: 'apps-script',
@@ -209,6 +224,7 @@ function doPost(e) {
     if (action === 'add') {
       const text = formatText_(payload.text);
       if (!text) return jsonResponse_({ error: "Le texte de l'article est vide.", code: 400 });
+      const addedBy = formatFirstName_(payload.added_by || '');
       const norm = normalizeText_(text);
 
       for (let i = 0; i < items.length; i++) {
@@ -216,16 +232,32 @@ function doPost(e) {
           if (items[i].checked) {
             sheet.getRange(items[i].rowIndex, 3).setValue(false);
             sheet.getRange(items[i].rowIndex, 5).setValue(nowIso);
+            if (addedBy) {
+              sheet.getRange(items[i].rowIndex, 6).setValue(addedBy);
+              items[i].added_by = addedBy;
+            }
             SpreadsheetApp.flush();
             return jsonResponse_({
               action: 'unchecked_existing',
-              item: { id: items[i].id, text: items[i].text, checked: false, sort: items[i].sort },
+              item: {
+                id: items[i].id,
+                text: items[i].text,
+                checked: false,
+                sort: items[i].sort,
+                added_by: items[i].added_by || '',
+              },
               list: buildListResponse_(ctx.ss, sheet),
             });
           }
           return jsonResponse_({
             action: 'already_exists',
-            item: { id: items[i].id, text: items[i].text, checked: false, sort: items[i].sort },
+            item: {
+              id: items[i].id,
+              text: items[i].text,
+              checked: false,
+              sort: items[i].sort,
+              added_by: items[i].added_by || '',
+            },
             list: buildListResponse_(ctx.ss, sheet),
           });
         }
@@ -237,10 +269,11 @@ function doPost(e) {
       const newItem = {
         id: Utilities.getUuid(),
         text: text,
-        checked: false,
+        checked: Boolean(payload.checked),
         sort: maxSort + 100,
+        added_by: addedBy,
       };
-      sheet.appendRow([newItem.id, newItem.text, false, newItem.sort, nowIso]);
+      sheet.appendRow([newItem.id, newItem.text, newItem.checked, newItem.sort, nowIso, newItem.added_by]);
       SpreadsheetApp.flush();
       return jsonResponse_({
         action: 'added',

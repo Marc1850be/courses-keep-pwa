@@ -84,6 +84,19 @@
           <button id="btn-dismiss-install" class="btn-ghost-xs" type="button" aria-label="Fermer">✕</button>
         </div>
       </div>
+
+      <!-- Bannière discrète pour saisir son prénom une seule fois (signature des ajouts) -->
+      <form class="name-banner hidden" id="name-banner" autocomplete="given-name">
+        <input
+          id="name-banner-input"
+          type="text"
+          placeholder="Votre prénom (affiché sur vos ajouts)…"
+          aria-label="Votre prénom"
+          maxlength="32"
+        />
+        <button type="submit" class="btn-primary-xs">OK</button>
+        <button id="btn-dismiss-name" class="btn-ghost-xs" type="button" aria-label="Fermer">✕</button>
+      </form>
     </header>
 
     <!-- Contenu principal : la liste de courses -->
@@ -214,6 +227,22 @@
 
       <form id="settings-form" class="sheet-body">
         <div class="field-group">
+          <label class="field-label" for="pref-user-name">Votre prénom (affiché sur vos ajouts)</label>
+          <input
+            id="pref-user-name"
+            class="input-control"
+            type="text"
+            autocomplete="given-name"
+            maxlength="32"
+            placeholder="Ex. Marc"
+          />
+          <div class="google-signin-wrap hidden" id="google-signin-wrap">
+            <div id="google-signin-btn"></div>
+          </div>
+          <p class="field-help">Mémorisé uniquement sur ce téléphone et affiché en petit sur chaque article ajouté.</p>
+        </div>
+
+        <div class="field-group">
           <label class="field-label">Position du bouton micro (préférence locale)</label>
           <div class="segmented" role="radiogroup" aria-label="Position du micro">
             <button type="button" class="seg-btn" data-mic-choice="left">← À gauche</button>
@@ -286,6 +315,17 @@
             placeholder="Ex. 1234 (optionnel)"
           />
           <p class="field-help">Mémorisé une seule fois sur ce téléphone.</p>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="cfg-google-client-id">Google Client ID (optionnel — prénom auto Google)</label>
+          <input
+            id="cfg-google-client-id"
+            class="input-control"
+            type="text"
+            placeholder="xxxx.apps.googleusercontent.com"
+          />
+          <p class="field-help">Si renseigné, active le bouton « Se connecter avec Google » pour récupérer automatiquement le prénom du compte Google (partagé via le lien familial).</p>
         </div>
 
         <div class="sheet-footer">

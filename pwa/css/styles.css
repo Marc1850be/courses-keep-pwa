@@ -1086,6 +1086,81 @@ html, body {
   color: var(--danger);
 }
 
+/* Prénom discret de la personne qui a ajouté l'article */
+.item-author {
+  flex-shrink: 0;
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-faint);
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-subtle);
+}
+
+.item-card.checked .item-author {
+  opacity: 0.55;
+}
+
+/* Bannière compacte de saisie du prénom */
+.name-banner {
+  margin-top: 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.name-banner input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.84rem;
+  outline: none;
+}
+
+.name-banner input::placeholder {
+  color: var(--text-faint);
+}
+
+/* Petite croix de rétablissement dans le toast "élément annulé" */
+.toast-action.toast-cross {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.16);
+  color: #FAF8F4;
+  font-size: 0.92rem;
+  line-height: 1;
+  padding: 0;
+  margin-right: -4px;
+}
+
+[data-theme="dark"] .toast-action.toast-cross {
+  background: rgba(20, 23, 21, 0.14);
+  color: #141715;
+}
+
+.google-signin-wrap {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 @media (min-width: 600px) {
   .app-shell {
     border-left: 1px solid var(--border);
@@ -1100,3 +1175,4 @@ html, body {
     padding-bottom: 22px;
   }
 }
+

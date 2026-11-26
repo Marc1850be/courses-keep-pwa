@@ -13,6 +13,7 @@
     loadCachedList,
     buildInviteUrl,
     consumeInviteFromHash,
+    formatFirstName,
   } = window.CoursesStorage;
 
   const { VoiceDictation, vibrate } = window.CoursesSpeech;
@@ -35,6 +36,9 @@
     deferredInstallPrompt: null,
     toastTimer: null,
     pollTimer: null,
+    pendingDelete: null,
+    nameBannerDismissed: false,
+    gsiScriptLoaded: false,
   };
 
   // Références DOM
@@ -50,6 +54,10 @@
     installBanner: document.getElementById('install-banner'),
     btnInstallPwa: document.getElementById('btn-install-pwa'),
     btnDismissInstall: document.getElementById('btn-dismiss-install'),
+
+    nameBanner: document.getElementById('name-banner'),
+    nameBannerInput: document.getElementById('name-banner-input'),
+    btnDismissName: document.getElementById('btn-dismiss-name'),
 
     uncheckedCount: document.getElementById('unchecked-count'),
     uncheckedList: document.getElementById('unchecked-list'),
@@ -79,6 +87,9 @@
     // Modale Réglages
     modalSettings: document.getElementById('modal-settings'),
     settingsForm: document.getElementById('settings-form'),
+    prefUserName: document.getElementById('pref-user-name'),
+    googleSigninWrap: document.getElementById('google-signin-wrap'),
+    googleSigninBtn: document.getElementById('google-signin-btn'),
     prefSpeechLang: document.getElementById('pref-speech-lang'),
     prefFeedback: document.getElementById('pref-feedback'),
     cfgMode: document.getElementById('cfg-mode'),
@@ -87,6 +98,7 @@
     cfgUrlHelp: document.getElementById('cfg-url-help'),
     cfgPinGroup: document.getElementById('cfg-pin-group'),
     cfgPin: document.getElementById('cfg-pin'),
+    cfgGoogleClientId: document.getElementById('cfg-google-client-id'),
     btnTestConnection: document.getElementById('btn-test-connection'),
 
     // Modale Partage
@@ -105,7 +117,7 @@
   };
 
   /* ==========================================================================
-     Utilitaires UI : Thème, Position du micro, Toasts, Modales
+     Utilitaires UI : Thème, Position du micro, Toasts, Modales, Prénom Google
      ========================================================================== */
   function applyTheme(themePref) {
     let resolved = themePref;
@@ -127,6 +139,76 @@
     });
   }
 
+  function updateNameBanner() {
+    const hasName = Boolean(formatFirstName(storage.config.userName));
+    els.nameBanner.classList.toggle('hidden', hasName || state.nameBannerDismissed);
+  }
+
+  function decodeGoogleJwtFirstName(credential) {
+    try {
+      const parts = String(credential || '').split('.');
+      if (parts.length < 2) return '';
+      let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const payload = JSON.parse(new TextDecoder().decode(bytes));
+      return formatFirstName(payload.given_name || payload.name || '');
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function renderGoogleSignInButton() {
+    const clientId = (storage.config.googleClientId || '').trim();
+    if (!clientId) {
+      els.googleSigninWrap.classList.add('hidden');
+      return;
+    }
+    els.googleSigninWrap.classList.remove('hidden');
+
+    const mount = () => {
+      if (!window.google || !window.google.accounts || !window.google.accounts.id) return;
+      try {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: (resp) => {
+            const firstName = decodeGoogleJwtFirstName(resp && resp.credential);
+            if (firstName) {
+              storage.config = saveConfig({ userName: firstName });
+              els.prefUserName.value = firstName;
+              updateNameBanner();
+              showToast(`Prénom Google récupéré : ${firstName}`);
+            }
+          },
+        });
+        els.googleSigninBtn.innerHTML = '';
+        window.google.accounts.id.renderButton(els.googleSigninBtn, {
+          theme: 'outline',
+          size: 'medium',
+          text: 'continue_with',
+          locale: 'fr',
+        });
+      } catch (_) {}
+    };
+
+    if (window.google && window.google.accounts && window.google.accounts.id) {
+      mount();
+      return;
+    }
+
+    if (!state.gsiScriptLoaded) {
+      state.gsiScriptLoaded = true;
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = mount;
+      document.head.appendChild(script);
+    }
+  }
+
   function showToast(message, options) {
     const opts = options || {};
     clearTimeout(state.toastTimer);
@@ -135,12 +217,16 @@
     if (opts.actionLabel && typeof opts.onAction === 'function') {
       els.toastAction.textContent = opts.actionLabel;
       els.toastAction.classList.remove('hidden');
+      els.toastAction.classList.toggle('toast-cross', Boolean(opts.isCross));
+      els.toastAction.setAttribute('aria-label', opts.actionAriaLabel || opts.actionLabel);
+      els.toastAction.title = opts.actionAriaLabel || opts.actionLabel;
       els.toastAction.onclick = () => {
         hideToast();
         opts.onAction();
       };
     } else {
       els.toastAction.classList.add('hidden');
+      els.toastAction.classList.remove('toast-cross');
       els.toastAction.onclick = null;
     }
 
@@ -255,6 +341,15 @@
       textWrap.appendChild(span);
     }
 
+    // Prénom discret de la personne ayant ajouté l'article
+    const authorName = formatFirstName(item.added_by || '');
+    const authorEl = authorName ? document.createElement('span') : null;
+    if (authorEl) {
+      authorEl.className = 'item-author';
+      authorEl.textContent = authorName;
+      authorEl.title = `Ajouté par ${authorName}`;
+    }
+
     // Bouton supprimer
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
@@ -264,7 +359,11 @@
       '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
     delBtn.addEventListener('click', () => handleDeleteItem(item));
 
-    li.append(checkBtn, textWrap, delBtn);
+    if (authorEl) {
+      li.append(checkBtn, textWrap, authorEl, delBtn);
+    } else {
+      li.append(checkBtn, textWrap, delBtn);
+    }
     return li;
   }
 
@@ -413,26 +512,73 @@
     }
   }
 
-  async function handleDeleteItem(item, silentToast) {
-    const backup = [...state.list.items];
-    state.list.items = state.list.items.filter((it) => it.id !== item.id);
-    renderList();
+  async function flushPendingDelete() {
+    const pending = state.pendingDelete;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    state.pendingDelete = null;
 
     try {
-      const res = await storage.deleteItem(item.id);
-      if (res.list) {
+      const res = await storage.deleteItem(pending.item.id);
+      if (res.list && !state.pendingDelete) {
         state.list = res.list;
         renderList();
       }
       els.syncStatus.textContent = formatSyncTime(state.list.updated_at);
-      if (!silentToast) {
-        showToast(`« ${item.text} » supprimé.`);
-      }
     } catch (err) {
-      state.list.items = backup;
+      state.list.items = pending.backup;
       renderList();
       showToast(err.message || 'Impossible de supprimer.');
     }
+  }
+
+  async function handleDeleteItem(item, silentToast) {
+    // Valide une éventuelle suppression précédente en attente avant d'en lancer une nouvelle
+    if (state.pendingDelete) {
+      await flushPendingDelete();
+    }
+
+    const backup = [...state.list.items];
+    state.list.items = state.list.items.filter((it) => it.id !== item.id);
+    renderList();
+
+    if (silentToast) {
+      try {
+        const res = await storage.deleteItem(item.id);
+        if (res.list) {
+          state.list = res.list;
+          renderList();
+        }
+        els.syncStatus.textContent = formatSyncTime(state.list.updated_at);
+      } catch (err) {
+        state.list.items = backup;
+        renderList();
+        showToast(err.message || 'Impossible de supprimer.');
+      }
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      flushPendingDelete();
+    }, 1050);
+
+    state.pendingDelete = { item, backup, timer };
+
+    showToast(`« ${item.text} » annulé`, {
+      actionLabel: '✕',
+      isCross: true,
+      actionAriaLabel: "Rétablir l'élément",
+      duration: 1000,
+      onAction: () => {
+        if (!state.pendingDelete || state.pendingDelete.item.id !== item.id) return;
+        clearTimeout(state.pendingDelete.timer);
+        const restored = state.pendingDelete.backup;
+        state.pendingDelete = null;
+        state.list.items = restored;
+        renderList();
+        vibrate(15, storage.config.feedback);
+      },
+    });
   }
 
   /* ==========================================================================
@@ -537,6 +683,8 @@
     els.cfgMode.value = cfg.mode;
     els.cfgUrl.value = cfg.apiUrl || '';
     els.cfgPin.value = cfg.pin || '';
+    els.prefUserName.value = cfg.userName || '';
+    els.cfgGoogleClientId.value = cfg.googleClientId || '';
     els.prefSpeechLang.value = cfg.speechLang || 'fr-BE';
     els.prefFeedback.checked = Boolean(cfg.feedback);
 
@@ -548,6 +696,7 @@
     });
 
     updateBackendFieldVisibility(cfg.mode);
+    renderGoogleSignInButton();
   }
 
   function updateBackendFieldVisibility(mode) {
@@ -724,15 +873,33 @@
     storage.config = saveConfig({ speechLang: els.prefSpeechLang.value });
   });
 
+  els.nameBanner.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const firstName = formatFirstName(els.nameBannerInput.value);
+    if (!firstName) return;
+    storage.config = saveConfig({ userName: firstName });
+    els.nameBannerInput.value = '';
+    updateNameBanner();
+    showToast(`Prénom enregistré : ${firstName}`);
+  });
+
+  els.btnDismissName.addEventListener('click', () => {
+    state.nameBannerDismissed = true;
+    updateNameBanner();
+  });
+
   els.settingsForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     storage.config = saveConfig({
       mode: els.cfgMode.value,
       apiUrl: els.cfgUrl.value.trim(),
       pin: els.cfgPin.value.trim(),
+      userName: formatFirstName(els.prefUserName.value),
+      googleClientId: els.cfgGoogleClientId.value.trim(),
       speechLang: els.prefSpeechLang.value,
       feedback: els.prefFeedback.checked,
     });
+    updateNameBanner();
     closeModal(els.modalSettings);
     showToast('Réglages enregistrés.');
     await syncList({ force: true });
@@ -802,9 +969,10 @@
       showToast('Configuration familiale appliquée automatiquement !', { duration: 4000 });
     }
 
-    // 2. Préférences locales (thème & position gauche/droite du micro)
+    // 2. Préférences locales (thème, position gauche/droite du micro, prénom)
     applyTheme(storage.config.theme);
     applyMicSide(storage.config.micSide);
+    updateNameBanner();
 
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
       if (storage.config.theme === 'auto') applyTheme('auto');
@@ -842,6 +1010,7 @@
         document.visibilityState === 'visible' &&
         !dictation.isListening &&
         !state.editingItemId &&
+        !state.pendingDelete &&
         storage.config.mode !== 'demo'
       ) {
         syncList({ silent: true, force: false });
@@ -849,9 +1018,19 @@
     }, 15000);
 
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && storage.config.mode !== 'demo') {
+      if (document.visibilityState === 'hidden') {
+        flushPendingDelete();
+      } else if (
+        document.visibilityState === 'visible' &&
+        !state.pendingDelete &&
+        storage.config.mode !== 'demo'
+      ) {
         syncList({ silent: true, force: false });
       }
+    });
+
+    window.addEventListener('pagehide', () => {
+      flushPendingDelete();
     });
   }
 

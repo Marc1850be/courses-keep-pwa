@@ -103,10 +103,14 @@ class LocalJsonShoppingStore:
                 "items": data.get("items", []),
             }
 
-    def add_item(self, raw_text: str) -> Dict[str, Any]:
+    def add_item(self, raw_text: str, added_by: Optional[str] = None) -> Dict[str, Any]:
         text = _format_item_text(raw_text)
         if not text:
             raise KeepStoreError("Le texte de l'article est vide.")
+
+        author = (added_by or "").strip().split()[0] if (added_by or "").strip() else ""
+        if author:
+            author = author[0].upper() + author[1:]
 
         norm = _normalize_text(text)
         with self._lock:
@@ -117,6 +121,8 @@ class LocalJsonShoppingStore:
                 if _normalize_text(item["text"]) == norm:
                     if item["checked"]:
                         item["checked"] = False
+                        if author:
+                            item["added_by"] = author
                         self._save(data)
                         return {"action": "unchecked_existing", "item": item, "list": self.get_list()}
                     return {"action": "already_exists", "item": item, "list": self.get_list()}
@@ -127,6 +133,7 @@ class LocalJsonShoppingStore:
                 "text": text,
                 "checked": False,
                 "sort": max_sort + 100,
+                "added_by": author,
             }
             items.insert(0, new_item)
             data["items"] = items
@@ -326,7 +333,7 @@ class GoogleKeepShoppingStore:
             glist = self._get_target_list()
             return self._serialize_list(glist)
 
-    def add_item(self, raw_text: str) -> Dict[str, Any]:
+    def add_item(self, raw_text: str, added_by: Optional[str] = None) -> Dict[str, Any]:
         text = _format_item_text(raw_text)
         if not text:
             raise KeepStoreError("Le texte de l'article est vide.")

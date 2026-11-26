@@ -22,6 +22,8 @@
     pin: '',
     micSide: 'right',
     speechLang: 'fr-BE',
+    userName: '',
+    googleClientId: '',
     theme: 'auto',
     feedback: true,
     keepUrl: DEFAULT_KEEP_URL,
@@ -40,6 +42,12 @@
     const cleaned = String(str || '').trim().replace(/\s+/g, ' ');
     if (!cleaned) return '';
     return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+
+  function formatFirstName(str) {
+    const first = String(str || '').trim().split(/\s+/)[0] || '';
+    if (!first) return '';
+    return first.charAt(0).toUpperCase() + first.slice(1);
   }
 
   function generateId() {
@@ -100,6 +108,9 @@
     if (includePin && config.pin) {
       payload.p = config.pin;
     }
+    if (config.googleClientId) {
+      payload.g = config.googleClientId;
+    }
     const json = JSON.stringify(payload);
     const bytes = new TextEncoder().encode(json);
     let binary = '';
@@ -133,6 +144,9 @@
       }
       if (typeof data.p === 'string' && data.p.trim()) {
         updates.pin = data.p.trim();
+      }
+      if (typeof data.g === 'string' && data.g.trim()) {
+        updates.googleClientId = data.g.trim();
       }
       const next = saveConfig(updates);
       // Nettoie l'URL pour ne pas laisser le jeton visible dans la barre d'adresse
@@ -299,9 +313,14 @@
       return data;
     }
 
-    async addItem(rawText) {
+    async addItem(rawText, options) {
+      const opts = options || {};
       const text = formatItemText(rawText);
       if (!text) throw new Error("L'article est vide.");
+
+      const addedBy = formatFirstName(
+        opts.addedBy !== undefined ? opts.addedBy : this.config.userName
+      );
 
       if (this.config.mode === 'demo') {
         const data = loadDemoData();
@@ -310,27 +329,39 @@
         if (existing) {
           if (existing.checked) {
             existing.checked = false;
+            if (addedBy) existing.added_by = addedBy;
             saveDemoData(data);
             return { action: 'unchecked_existing', item: existing, list: data };
           }
           return { action: 'already_exists', item: existing, list: data };
         }
         const maxSort = data.items.reduce((m, it) => Math.max(m, it.sort || 0), 0);
-        const item = { id: generateId(), text: text, checked: false, sort: maxSort + 100 };
+        const item = {
+          id: generateId(),
+          text: text,
+          checked: Boolean(opts.checked),
+          sort: maxSort + 100,
+          added_by: addedBy,
+        };
         data.items.unshift(item);
         saveDemoData(data);
         return { action: 'added', item: item, list: data };
       }
 
       if (this.config.mode === 'apps-script') {
-        const res = await this._gasPost({ action: 'add', text: text });
+        const res = await this._gasPost({
+          action: 'add',
+          text: text,
+          added_by: addedBy,
+          checked: Boolean(opts.checked),
+        });
         if (res.list) saveCachedList(res.list);
         return res;
       }
 
       const res = await this._keepFetch('/api/items', {
         method: 'POST',
-        body: JSON.stringify({ text: text }),
+        body: JSON.stringify({ text: text, added_by: addedBy }),
       });
       if (res.list) saveCachedList(res.list);
       return res;
@@ -442,5 +473,6 @@
     buildInviteUrl,
     consumeInviteFromHash,
     formatItemText,
+    formatFirstName,
   };
 })(window);

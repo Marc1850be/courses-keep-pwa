@@ -54,6 +54,7 @@ store = create_store_from_env()
 
 class AddItemPayload(BaseModel):
     text: str = Field(..., min_length=1, max_length=200)
+    added_by: Optional[str] = Field(default=None, max_length=60)
 
 
 class UpdateItemPayload(BaseModel):
@@ -122,7 +123,7 @@ def get_list(force: bool = Query(default=False)) -> dict:
 @app.post("/api/items", dependencies=[Depends(verify_family_pin)], status_code=201)
 def add_item(payload: AddItemPayload) -> dict:
     try:
-        return store.add_item(payload.text)
+        return store.add_item(payload.text, added_by=payload.added_by)
     except KeepStoreError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
