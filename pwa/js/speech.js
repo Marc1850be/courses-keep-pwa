@@ -74,7 +74,7 @@
       return Boolean(SpeechRecognitionAPI);
     }
 
-    start(feedbackEnabled) {
+    start(feedbackEnabled, lang) {
       if (!SpeechRecognitionAPI) {
         if (this.callbacks.onError) {
           this.callbacks.onError(
@@ -94,7 +94,7 @@
       this.cancelled = false;
 
       const rec = new SpeechRecognitionAPI();
-      rec.lang = 'fr-FR';
+      rec.lang = lang || 'fr-BE';
       rec.continuous = false; // 1 appui = 1 élément, arrêt automatique après l'article
       rec.interimResults = true;
       rec.maxAlternatives = 1;

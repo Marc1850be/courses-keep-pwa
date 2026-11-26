@@ -79,6 +79,7 @@
     // Modale Réglages
     modalSettings: document.getElementById('modal-settings'),
     settingsForm: document.getElementById('settings-form'),
+    prefSpeechLang: document.getElementById('pref-speech-lang'),
     prefFeedback: document.getElementById('pref-feedback'),
     cfgMode: document.getElementById('cfg-mode'),
     cfgUrlGroup: document.getElementById('cfg-url-group'),
@@ -442,7 +443,8 @@
       hideToast();
       els.btnMic.classList.add('listening');
       els.btnMic.setAttribute('aria-pressed', 'true');
-      els.voiceStatusLabel.textContent = "J'écoute… dites un article";
+      const langTag = (storage.config.speechLang || 'fr-BE').toUpperCase();
+      els.voiceStatusLabel.textContent = `J'écoute (${langTag})… dites un article`;
       els.voiceInterimText.textContent = 'Parlez maintenant';
       els.voiceLiveBar.classList.remove('hidden');
     },
@@ -518,7 +520,7 @@
       els.quickAddInput.focus();
       return;
     }
-    dictation.start(storage.config.feedback);
+    dictation.start(storage.config.feedback, storage.config.speechLang);
   });
 
   els.btnCancelVoice.addEventListener('click', () => {
@@ -535,6 +537,7 @@
     els.cfgMode.value = cfg.mode;
     els.cfgUrl.value = cfg.apiUrl || '';
     els.cfgPin.value = cfg.pin || '';
+    els.prefSpeechLang.value = cfg.speechLang || 'fr-BE';
     els.prefFeedback.checked = Boolean(cfg.feedback);
 
     document.querySelectorAll('[data-mic-choice]').forEach((btn) => {
@@ -717,12 +720,17 @@
     }
   });
 
+  els.prefSpeechLang.addEventListener('change', () => {
+    storage.config = saveConfig({ speechLang: els.prefSpeechLang.value });
+  });
+
   els.settingsForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     storage.config = saveConfig({
       mode: els.cfgMode.value,
       apiUrl: els.cfgUrl.value.trim(),
       pin: els.cfgPin.value.trim(),
+      speechLang: els.prefSpeechLang.value,
       feedback: els.prefFeedback.checked,
     });
     closeModal(els.modalSettings);
@@ -825,7 +833,7 @@
     // 6. Raccourci Android "Dicter un article" (?dictate=1)
     const params = new URLSearchParams(window.location.search);
     if (params.get('dictate') === '1' && VoiceDictation.isSupported()) {
-      setTimeout(() => dictation.start(storage.config.feedback), 400);
+      setTimeout(() => dictation.start(storage.config.feedback, storage.config.speechLang), 400);
     }
 
     // 7. Rafraîchissement discret toutes les 15s lorsque l'app est visible

@@ -21,6 +21,7 @@
     apiUrl: '',   // Vide = même origine que la PWA (pratique quand FastAPI sert la PWA)
     pin: '',
     micSide: 'right',
+    speechLang: 'fr-BE',
     theme: 'auto',
     feedback: true,
     keepUrl: DEFAULT_KEEP_URL,
