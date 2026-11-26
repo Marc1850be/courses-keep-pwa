@@ -1,4 +1,4 @@
-const CACHE_NAME = 'courses-keep-pwa-v4';
+const CACHE_NAME = 'courses-keep-pwa-v5';
 const APP_SHELL = [
   './',
   './index.html',
@@ -51,20 +51,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // App Shell : Cache-first avec mise à jour en arrière-plan
+  // App Shell : Network-First avec repli sur le cache hors ligne (mises à jour instantanées sur Android)
   event.respondWith(
-    caches.match(req).then((cached) => {
-      const networkFetch = fetch(req)
-        .then((res) => {
-          if (res && res.status === 200 && url.origin === self.location.origin) {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
-          }
-          return res;
-        })
-        .catch(() => cached);
-
-      return cached || networkFetch;
-    })
+    fetch(req)
+      .then((res) => {
+        if (res && res.status === 200 && url.origin === self.location.origin) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+        }
+        return res;
+      })
+      .catch(() => caches.match(req))
   );
 });
