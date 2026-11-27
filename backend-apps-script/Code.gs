@@ -12,6 +12,7 @@
  */
 
 const SHEET_NAME = 'Courses';
+const SCRIPT_VERSION = 'v6';
 const DEFAULT_KEEP_URL = 'https://keep.google.com/';
 
 // Optionnel : définissez votre code PIN ici ou via Paramètres du projet > Propriétés du script (clé FAMILY_PIN)
@@ -74,6 +75,10 @@ function getOrCreateSheet_() {
   if (!sheet) {
     sheet = ss.getSheets()[0];
     sheet.setName(SHEET_NAME);
+  }
+
+  if (sheet.getMaxColumns() < 7) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 7 - sheet.getMaxColumns());
   }
 
   // Initialisation des en-têtes si feuille vide (ou migration automatique vers added_by & quantity)
@@ -159,6 +164,7 @@ function buildListResponse_(ss, sheet) {
   });
   return {
     mode: 'apps-script',
+    script_version: SCRIPT_VERSION,
     list_id: ss.getId(),
     title: ss.getName(),
     sheet_url: ss.getUrl(),
@@ -186,6 +192,7 @@ function doGet(e) {
       return jsonResponse_({
         status: 'ok',
         mode: 'apps-script',
+        script_version: SCRIPT_VERSION,
         pin_required: Boolean(getConfiguredPin_()),
         keep_url: DEFAULT_KEEP_URL,
       });

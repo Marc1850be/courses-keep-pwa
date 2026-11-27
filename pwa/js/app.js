@@ -1019,7 +1019,15 @@
           return;
         }
       }
-      showToast(`Connexion et Code PIN validés (mode : ${info.mode || storage.config.mode}) !`);
+      const scriptVer = info.script_version
+        ? ` · Script ${info.script_version}`
+        : storage.config.mode === 'apps-script'
+        ? ' · ⚠️ Ancien Code.gs (à redéployer en Nouvelle version)'
+        : '';
+      showToast(
+        `Connexion et PIN OK (${info.mode || storage.config.mode}${scriptVer}) !`,
+        { duration: 5500 }
+      );
     } catch (err) {
       showToast('Échec du test : ' + (err.message || 'serveur injoignable'), { duration: 4500 });
     } finally {
