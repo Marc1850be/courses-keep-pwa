@@ -14,6 +14,7 @@
     buildInviteUrl,
     consumeInviteFromHash,
     formatFirstName,
+    clampQuantity,
   } = window.CoursesStorage;
 
   const { VoiceDictation, vibrate } = window.CoursesSpeech;
@@ -37,6 +38,7 @@
     toastTimer: null,
     pollTimer: null,
     pendingDelete: null,
+    pendingQtyUpdates: {},
     nameBannerDismissed: false,
     gsiScriptLoaded: false,
   };
@@ -350,6 +352,92 @@
       authorEl.title = `Ajouté par ${authorName}`;
     }
 
+    // Bouton compteur de quantité : tap -> 1x..12x, appui maintenu 1,5s -> 1x
+    const qty = clampQuantity(item.quantity);
+    const qtyBtn = document.createElement('button');
+    qtyBtn.type = 'button';
+    qtyBtn.className = 'qty-btn' + (qty > 1 ? ' multi' : '');
+    qtyBtn.setAttribute('aria-label', `Quantité : ${qty}x. Appuyer pour augmenter, maintenir 1,5 seconde pour revenir à 1x`);
+    qtyBtn.title = 'Appuyer : +1 (jusqu’à 12x) · Maintenir 1,5 s : 1x';
+    const qtyLabel = document.createElement('span');
+    qtyLabel.textContent = `${qty}x`;
+    qtyBtn.appendChild(qtyLabel);
+
+    let holdTimer = null;
+    let holdTriggered = false;
+    let pointerActive = false;
+
+    const clearHold = () => {
+      if (holdTimer) {
+        clearTimeout(holdTimer);
+        holdTimer = null;
+      }
+      qtyBtn.classList.remove('holding');
+    };
+
+    qtyBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    qtyBtn.addEventListener('pointerdown', (e) => {
+      if (e.button && e.button !== 0) return;
+      e.preventDefault();
+      pointerActive = true;
+      holdTriggered = false;
+      try {
+        qtyBtn.setPointerCapture(e.pointerId);
+      } catch (_) {}
+
+      const currentQty = clampQuantity(item.quantity);
+      if (currentQty > 1) {
+        // Force reflow pour redémarrer proprement la barre de maintien 1,5s
+        qtyBtn.classList.remove('holding');
+        void qtyBtn.offsetWidth;
+        qtyBtn.classList.add('holding');
+      }
+
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        if (!pointerActive) return;
+        holdTriggered = true;
+        qtyBtn.classList.remove('holding');
+        handleSetQuantity(item, 1, true, qtyBtn, qtyLabel);
+      }, 1500);
+    });
+
+    qtyBtn.addEventListener('pointerup', (e) => {
+      if (!pointerActive) return;
+      pointerActive = false;
+      clearHold();
+      try {
+        qtyBtn.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+
+      if (holdTriggered) {
+        holdTriggered = false;
+        return;
+      }
+      const currentQty = clampQuantity(item.quantity);
+      if (currentQty < 12) {
+        handleSetQuantity(item, currentQty + 1, false, qtyBtn, qtyLabel);
+      } else {
+        vibrate(10, storage.config.feedback);
+      }
+    });
+
+    qtyBtn.addEventListener('pointercancel', () => {
+      pointerActive = false;
+      holdTriggered = false;
+      clearHold();
+    });
+
+    // Support clavier (accessibilité : Entrée / Espace incrémente)
+    qtyBtn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const currentQty = clampQuantity(item.quantity);
+        if (currentQty < 12) handleSetQuantity(item, currentQty + 1, false, qtyBtn, qtyLabel);
+      }
+    });
+
     // Bouton supprimer
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
@@ -360,9 +448,9 @@
     delBtn.addEventListener('click', () => handleDeleteItem(item));
 
     if (authorEl) {
-      li.append(checkBtn, textWrap, authorEl, delBtn);
+      li.append(checkBtn, textWrap, authorEl, qtyBtn, delBtn);
     } else {
-      li.append(checkBtn, textWrap, delBtn);
+      li.append(checkBtn, textWrap, qtyBtn, delBtn);
     }
     return li;
   }
@@ -510,6 +598,76 @@
       renderList();
       showToast(err.message || 'Erreur lors de la modification.');
     }
+  }
+
+  async function commitQuantityUpdate(itemId) {
+    const entry = state.pendingQtyUpdates[itemId];
+    if (!entry) return;
+    clearTimeout(entry.timer);
+    delete state.pendingQtyUpdates[itemId];
+
+    try {
+      const res = await storage.updateItem(itemId, { quantity: entry.nextQty });
+      // Ne ré-écrase pas la liste si un autre tap rapide est déjà en attente
+      if (res.list && Object.keys(state.pendingQtyUpdates).length === 0 && !state.pendingDelete) {
+        state.list = res.list;
+        renderList();
+      }
+      els.syncStatus.textContent = formatSyncTime(state.list.updated_at);
+    } catch (err) {
+      entry.item.quantity = entry.prevQty;
+      renderList();
+      if (err instanceof AuthRequiredError) openPinModal();
+      else showToast(err.message || 'Impossible de mettre à jour la quantité.');
+    }
+  }
+
+  function flushPendingQuantities() {
+    Object.keys(state.pendingQtyUpdates).forEach((itemId) => {
+      commitQuantityUpdate(itemId);
+    });
+  }
+
+  function handleSetQuantity(item, targetQty, isReset, btnEl, labelEl) {
+    const prevQty = clampQuantity(item.quantity);
+    const nextQty = clampQuantity(targetQty);
+    if (nextQty === prevQty) {
+      if (isReset) vibrate(15, storage.config.feedback);
+      return;
+    }
+
+    if (isReset) {
+      vibrate([30, 40, 20], storage.config.feedback);
+    } else {
+      vibrate(12, storage.config.feedback);
+    }
+
+    item.quantity = nextQty;
+    if (btnEl && labelEl) {
+      labelEl.textContent = `${nextQty}x`;
+      btnEl.classList.toggle('multi', nextQty > 1);
+      btnEl.setAttribute(
+        'aria-label',
+        `Quantité : ${nextQty}x. Appuyer pour augmenter, maintenir 1,5 seconde pour revenir à 1x`
+      );
+    } else {
+      renderList();
+    }
+
+    const existing = state.pendingQtyUpdates[item.id];
+    const originalPrev = existing ? existing.prevQty : prevQty;
+    if (existing) clearTimeout(existing.timer);
+
+    const timer = setTimeout(() => {
+      commitQuantityUpdate(item.id);
+    }, 450);
+
+    state.pendingQtyUpdates[item.id] = {
+      item,
+      prevQty: originalPrev,
+      nextQty,
+      timer,
+    };
   }
 
   async function flushPendingDelete() {
@@ -1017,6 +1175,7 @@
         !dictation.isListening &&
         !state.editingItemId &&
         !state.pendingDelete &&
+        Object.keys(state.pendingQtyUpdates).length === 0 &&
         storage.config.mode !== 'demo'
       ) {
         syncList({ silent: true, force: false });
@@ -1025,10 +1184,12 @@
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') {
+        flushPendingQuantities();
         flushPendingDelete();
       } else if (
         document.visibilityState === 'visible' &&
         !state.pendingDelete &&
+        Object.keys(state.pendingQtyUpdates).length === 0 &&
         storage.config.mode !== 'demo'
       ) {
         syncList({ silent: true, force: false });
@@ -1036,6 +1197,7 @@
     });
 
     window.addEventListener('pagehide', () => {
+      flushPendingQuantities();
       flushPendingDelete();
     });
   }

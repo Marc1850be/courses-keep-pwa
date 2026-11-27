@@ -50,6 +50,13 @@
     return first.charAt(0).toUpperCase() + first.slice(1);
   }
 
+  function clampQuantity(val) {
+    const n = parseInt(val, 10);
+    if (isNaN(n) || n < 1) return 1;
+    if (n > 12) return 12;
+    return n;
+  }
+
   function generateId() {
     if (global.crypto && typeof global.crypto.randomUUID === 'function') {
       return global.crypto.randomUUID();
@@ -342,6 +349,7 @@
           checked: Boolean(opts.checked),
           sort: maxSort + 100,
           added_by: addedBy,
+          quantity: clampQuantity(opts.quantity),
         };
         data.items.unshift(item);
         saveDemoData(data);
@@ -354,6 +362,7 @@
           text: text,
           added_by: addedBy,
           checked: Boolean(opts.checked),
+          quantity: clampQuantity(opts.quantity),
         });
         if (res.list) saveCachedList(res.list);
         return res;
@@ -377,6 +386,9 @@
           const formatted = formatItemText(changes.text);
           if (!formatted) throw new Error('Texte vide.');
           item.text = formatted;
+        }
+        if (changes.quantity !== undefined) {
+          item.quantity = clampQuantity(changes.quantity);
         }
         saveDemoData(data);
         return { item: item, list: data };
@@ -474,5 +486,6 @@
     consumeInviteFromHash,
     formatItemText,
     formatFirstName,
+    clampQuantity,
   };
 })(window);

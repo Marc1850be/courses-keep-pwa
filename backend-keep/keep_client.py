@@ -134,6 +134,7 @@ class LocalJsonShoppingStore:
                 "checked": False,
                 "sort": max_sort + 100,
                 "added_by": author,
+                "quantity": 1,
             }
             items.insert(0, new_item)
             data["items"] = items
@@ -141,7 +142,11 @@ class LocalJsonShoppingStore:
             return {"action": "added", "item": new_item, "list": self.get_list()}
 
     def update_item(
-        self, item_id: str, checked: Optional[bool] = None, text: Optional[str] = None
+        self,
+        item_id: str,
+        checked: Optional[bool] = None,
+        text: Optional[str] = None,
+        quantity: Optional[int] = None,
     ) -> Dict[str, Any]:
         with self._lock:
             data = self._load()
@@ -155,6 +160,8 @@ class LocalJsonShoppingStore:
                         if not formatted:
                             raise KeepStoreError("Le texte ne peut pas être vide.")
                         item["text"] = formatted
+                    if quantity is not None:
+                        item["quantity"] = max(1, min(12, int(quantity)))
                     self._save(data)
                     return {"item": item, "list": self.get_list()}
             raise KeyError(f"Article introuvable : {item_id}")
@@ -391,7 +398,11 @@ class GoogleKeepShoppingStore:
             }
 
     def update_item(
-        self, item_id: str, checked: Optional[bool] = None, text: Optional[str] = None
+        self,
+        item_id: str,
+        checked: Optional[bool] = None,
+        text: Optional[str] = None,
+        quantity: Optional[int] = None,
     ) -> Dict[str, Any]:
         with self._lock:
             self._ensure_synced(force=True)

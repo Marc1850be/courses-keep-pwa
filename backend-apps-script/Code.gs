@@ -76,13 +76,18 @@ function getOrCreateSheet_() {
     sheet.setName(SHEET_NAME);
   }
 
-  // Initialisation des en-têtes si feuille vide (ou migration automatique vers la 6e colonne added_by)
+  // Initialisation des en-têtes si feuille vide (ou migration automatique vers added_by & quantity)
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['id', 'text', 'checked', 'sort', 'updated_at', 'added_by']);
-    sheet.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#E8F3EE');
+    sheet.appendRow(['id', 'text', 'checked', 'sort', 'updated_at', 'added_by', 'quantity']);
+    sheet.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#E8F3EE');
     sheet.setFrozenRows(1);
-  } else if (String(sheet.getRange(1, 6).getValue() || '').trim() !== 'added_by') {
-    sheet.getRange(1, 6).setValue('added_by').setFontWeight('bold').setBackground('#E8F3EE');
+  } else {
+    if (String(sheet.getRange(1, 6).getValue() || '').trim() !== 'added_by') {
+      sheet.getRange(1, 6).setValue('added_by').setFontWeight('bold').setBackground('#E8F3EE');
+    }
+    if (String(sheet.getRange(1, 7).getValue() || '').trim() !== 'quantity') {
+      sheet.getRange(1, 7).setValue('quantity').setFontWeight('bold').setBackground('#E8F3EE');
+    }
   }
 
   return { ss: ss, sheet: sheet };
@@ -109,10 +114,17 @@ function formatFirstName_(str) {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+function clampQuantity_(val) {
+  const n = parseInt(val, 10);
+  if (isNaN(n) || n < 1) return 1;
+  if (n > 12) return 12;
+  return n;
+}
+
 function readAllItems_(sheet) {
   const lastRow = sheet.getLastRow();
   if (lastRow <= 1) return [];
-  const rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+  const rows = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
   const items = [];
   for (let i = 0; i < rows.length; i++) {
     const id = String(rows[i][0] || '').trim();
@@ -125,6 +137,7 @@ function readAllItems_(sheet) {
       checked: rows[i][2] === true || String(rows[i][2]).toUpperCase() === 'TRUE',
       sort: Number(rows[i][3]) || (rows.length - i) * 100,
       added_by: formatFirstName_(rows[i][5] || ''),
+      quantity: clampQuantity_(rows[i][6]),
     });
   }
   items.sort(function (a, b) {
@@ -141,6 +154,7 @@ function buildListResponse_(ss, sheet) {
       checked: it.checked,
       sort: it.sort,
       added_by: it.added_by || '',
+      quantity: clampQuantity_(it.quantity),
     };
   });
   return {
@@ -232,6 +246,8 @@ function doPost(e) {
           if (items[i].checked) {
             sheet.getRange(items[i].rowIndex, 3).setValue(false);
             sheet.getRange(items[i].rowIndex, 5).setValue(nowIso);
+            sheet.getRange(items[i].rowIndex, 7).setValue(1);
+            items[i].quantity = 1;
             if (addedBy) {
               sheet.getRange(items[i].rowIndex, 6).setValue(addedBy);
               items[i].added_by = addedBy;
@@ -245,6 +261,7 @@ function doPost(e) {
                 checked: false,
                 sort: items[i].sort,
                 added_by: items[i].added_by || '',
+                quantity: 1,
               },
               list: buildListResponse_(ctx.ss, sheet),
             });
@@ -257,6 +274,7 @@ function doPost(e) {
               checked: false,
               sort: items[i].sort,
               added_by: items[i].added_by || '',
+              quantity: clampQuantity_(items[i].quantity),
             },
             list: buildListResponse_(ctx.ss, sheet),
           });
@@ -272,8 +290,17 @@ function doPost(e) {
         checked: Boolean(payload.checked),
         sort: maxSort + 100,
         added_by: addedBy,
+        quantity: clampQuantity_(payload.quantity),
       };
-      sheet.appendRow([newItem.id, newItem.text, newItem.checked, newItem.sort, nowIso, newItem.added_by]);
+      sheet.appendRow([
+        newItem.id,
+        newItem.text,
+        newItem.checked,
+        newItem.sort,
+        nowIso,
+        newItem.added_by,
+        newItem.quantity,
+      ]);
       SpreadsheetApp.flush();
       return jsonResponse_({
         action: 'added',
@@ -298,10 +325,22 @@ function doPost(e) {
         sheet.getRange(target.rowIndex, 2).setValue(formatted);
         target.text = formatted;
       }
+      if (payload.quantity !== undefined && payload.quantity !== null) {
+        const qty = clampQuantity_(payload.quantity);
+        sheet.getRange(target.rowIndex, 7).setValue(qty);
+        target.quantity = qty;
+      }
       sheet.getRange(target.rowIndex, 5).setValue(nowIso);
       SpreadsheetApp.flush();
       return jsonResponse_({
-        item: { id: target.id, text: target.text, checked: target.checked, sort: target.sort },
+        item: {
+          id: target.id,
+          text: target.text,
+          checked: target.checked,
+          sort: target.sort,
+          added_by: target.added_by || '',
+          quantity: clampQuantity_(target.quantity),
+        },
         list: buildListResponse_(ctx.ss, sheet),
       });
     }

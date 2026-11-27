@@ -60,6 +60,7 @@ class AddItemPayload(BaseModel):
 class UpdateItemPayload(BaseModel):
     checked: Optional[bool] = None
     text: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    quantity: Optional[int] = Field(default=None, ge=1, le=12)
 
 
 class PinPayload(BaseModel):
@@ -134,7 +135,9 @@ def add_item(payload: AddItemPayload) -> dict:
 @app.patch("/api/items/{item_id}", dependencies=[Depends(verify_family_pin)])
 def update_item(item_id: str, payload: UpdateItemPayload) -> dict:
     try:
-        return store.update_item(item_id, checked=payload.checked, text=payload.text)
+        return store.update_item(
+            item_id, checked=payload.checked, text=payload.text, quantity=payload.quantity
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except KeepStoreError as exc:
