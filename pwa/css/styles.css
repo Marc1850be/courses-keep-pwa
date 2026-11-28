@@ -1167,6 +1167,58 @@ html, body {
   opacity: 0.55;
 }
 
+/* Poignée de déplacement 6 points façon Google Keep */
+.drag-handle {
+  flex-shrink: 0;
+  width: 24px;
+  height: 36px;
+  margin-left: -6px;
+  margin-right: -4px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.drag-handle:hover,
+.drag-handle:active {
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+}
+
+.item-card.dragging {
+  cursor: grabbing;
+  box-shadow: 0 14px 32px rgba(26, 30, 26, 0.2), 0 0 0 1.5px var(--accent);
+  transform: scale(1.02);
+  opacity: 0.96;
+  transition: none !important;
+  pointer-events: none;
+}
+
+.item-card.dragging .drag-handle {
+  cursor: grabbing;
+  color: var(--accent);
+}
+
+.drag-placeholder {
+  list-style: none;
+  border-radius: var(--radius-md);
+  border: 2px dashed var(--accent);
+  background: var(--accent-soft);
+  opacity: 0.6;
+  transition: height 0.12s ease;
+}
+
 /* Bannière compacte de saisie du prénom */
 .name-banner {
   margin-top: 10px;

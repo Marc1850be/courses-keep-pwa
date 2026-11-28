@@ -12,7 +12,7 @@
  */
 
 const SHEET_NAME = 'Courses';
-const SCRIPT_VERSION = 'v6';
+const SCRIPT_VERSION = 'v7';
 const DEFAULT_KEEP_URL = 'https://keep.google.com/';
 
 // Optionnel : définissez votre code PIN ici ou via Paramètres du projet > Propriétés du script (clé FAMILY_PIN)
@@ -399,6 +399,34 @@ function doPost(e) {
       SpreadsheetApp.flush();
       return jsonResponse_({
         unchecked_count: count,
+        list: buildListResponse_(ctx.ss, sheet),
+      });
+    }
+
+    if (action === 'reorder') {
+      const ids = Array.isArray(payload.ids) ? payload.ids : [];
+      if (ids.length === 0) {
+        return jsonResponse_({ error: 'Liste d’IDs vide pour reorder.', code: 400 });
+      }
+      const rank = {};
+      for (let i = 0; i < ids.length; i++) {
+        rank[String(ids[i])] = i;
+      }
+      const total = ids.length;
+      const base = 1000;
+      let updated = 0;
+      for (let i = 0; i < items.length; i++) {
+        const idx = rank[items[i].id];
+        if (idx !== undefined) {
+          const newSort = base + (total - idx) * 100;
+          sheet.getRange(items[i].rowIndex, 4).setValue(newSort);
+          sheet.getRange(items[i].rowIndex, 5).setValue(nowIso);
+          updated++;
+        }
+      }
+      SpreadsheetApp.flush();
+      return jsonResponse_({
+        reordered: updated,
         list: buildListResponse_(ctx.ss, sheet),
       });
     }

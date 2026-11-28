@@ -197,6 +197,21 @@ class LocalJsonShoppingStore:
             self._save(data)
             return {"unchecked_count": count, "list": self.get_list()}
 
+    def reorder_items(self, ordered_ids: List[str]) -> Dict[str, Any]:
+        with self._lock:
+            data = self._load()
+            items: List[Dict[str, Any]] = data.get("items", [])
+            rank = {item_id: idx for idx, item_id in enumerate(ordered_ids)}
+            total = len(ordered_ids)
+            base = 1000
+            for item in items:
+                if item["id"] in rank:
+                    item["sort"] = base + (total - rank[item["id"]]) * 100
+            items.sort(key=lambda i: int(i.get("sort", 0)), reverse=True)
+            data["items"] = items
+            self._save(data)
+            return {"reordered": len(ordered_ids), "list": self.get_list()}
+
 
 class GoogleKeepShoppingStore:
     """
@@ -471,6 +486,24 @@ class GoogleKeepShoppingStore:
                 self._last_sync_ts = time.monotonic()
                 self._persist_state()
             return {"unchecked_count": len(checked_items), "list": self._serialize_list(glist)}
+
+    def reorder_items(self, ordered_ids: List[str]) -> Dict[str, Any]:
+        with self._lock:
+            self._ensure_synced(force=True)
+            glist = self._get_target_list()
+            rank = {item_id: idx for idx, item_id in enumerate(ordered_ids)}
+            total = len(ordered_ids)
+            base = 1000
+            changed = 0
+            for item in glist.items:
+                if item.id in rank:
+                    item.sort = base + (total - rank[item.id]) * 100
+                    changed += 1
+            if changed:
+                self._keep.sync()
+                self._last_sync_ts = time.monotonic()
+                self._persist_state()
+            return {"reordered": changed, "list": self._serialize_list(glist)}
 
 
 def create_store_from_env() -> GoogleKeepShoppingStore | LocalJsonShoppingStore:

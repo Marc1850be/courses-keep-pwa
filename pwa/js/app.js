@@ -39,6 +39,7 @@
     pollTimer: null,
     pendingDelete: null,
     pendingQtyUpdates: {},
+    dragging: false,
     nameBannerDismissed: false,
     gsiScriptLoaded: false,
   };
@@ -283,6 +284,23 @@
     }
     li.dataset.id = item.id;
 
+    // Poignée 6 points (façon Google Keep) pour déplacer les articles non cochés
+    let dragHandle = null;
+    if (!item.checked) {
+      dragHandle = document.createElement('button');
+      dragHandle.type = 'button';
+      dragHandle.className = 'drag-handle';
+      dragHandle.setAttribute('aria-label', `Déplacer ${item.text}`);
+      dragHandle.title = 'Glisser pour réorganiser';
+      dragHandle.innerHTML =
+        '<svg viewBox="0 0 16 24" width="14" height="20" fill="currentColor" aria-hidden="true">' +
+        '<circle cx="5" cy="6" r="1.6"/><circle cx="11" cy="6" r="1.6"/>' +
+        '<circle cx="5" cy="12" r="1.6"/><circle cx="11" cy="12" r="1.6"/>' +
+        '<circle cx="5" cy="18" r="1.6"/><circle cx="11" cy="18" r="1.6"/>' +
+        '</svg>';
+      attachDragReorder(dragHandle, li);
+    }
+
     // Bouton case à cocher
     const checkBtn = document.createElement('button');
     checkBtn.type = 'button';
@@ -447,12 +465,175 @@
       '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
     delBtn.addEventListener('click', () => handleDeleteItem(item));
 
-    if (authorEl) {
-      li.append(checkBtn, textWrap, authorEl, qtyBtn, delBtn);
-    } else {
-      li.append(checkBtn, textWrap, qtyBtn, delBtn);
-    }
+    const rowParts = [];
+    if (dragHandle) rowParts.push(dragHandle);
+    rowParts.push(checkBtn, textWrap);
+    if (authorEl) rowParts.push(authorEl);
+    rowParts.push(qtyBtn, delBtn);
+    li.append(...rowParts);
     return li;
+  }
+
+  function attachDragReorder(handle, li) {
+    handle.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.button && e.button !== 0) return;
+      if (state.editingItemId || state.dragging) return;
+
+      const listEl = els.uncheckedList;
+      if (!listEl || listEl.children.length < 2) return;
+
+      e.preventDefault();
+      state.dragging = true;
+      vibrate(18, storage.config.feedback);
+
+      const initialOrder = Array.from(listEl.children).map((el) => el.dataset.id);
+      const rect = li.getBoundingClientRect();
+      const startY = e.clientY;
+      let lastClientY = e.clientY;
+      let autoScrollRaf = null;
+
+      // Emplacement pointillé qui montre la destination pendant le glissement
+      const placeholder = document.createElement('li');
+      placeholder.className = 'drag-placeholder';
+      placeholder.style.height = rect.height + 'px';
+      listEl.insertBefore(placeholder, li);
+
+      // Passe la carte en mode flottant au-dessus de la liste
+      li.classList.add('dragging');
+      li.style.position = 'fixed';
+      li.style.top = rect.top + 'px';
+      li.style.left = rect.left + 'px';
+      li.style.width = rect.width + 'px';
+      li.style.zIndex = '60';
+      li.style.margin = '0';
+
+      try {
+        handle.setPointerCapture(e.pointerId);
+      } catch (_) {}
+
+      const repositionPlaceholder = (clientY) => {
+        const siblings = Array.from(listEl.children).filter(
+          (el) => el !== li && el !== placeholder
+        );
+        let targetSibling = null;
+        for (let i = 0; i < siblings.length; i++) {
+          const sRect = siblings[i].getBoundingClientRect();
+          if (clientY < sRect.top + sRect.height / 2) {
+            targetSibling = siblings[i];
+            break;
+          }
+        }
+        const prevNext = placeholder.nextSibling;
+        if (targetSibling) {
+          if (prevNext !== targetSibling) {
+            listEl.insertBefore(placeholder, targetSibling);
+            vibrate(6, storage.config.feedback);
+          }
+        } else if (prevNext !== null) {
+          listEl.appendChild(placeholder);
+          vibrate(6, storage.config.feedback);
+        }
+      };
+
+      const stepAutoScroll = () => {
+        if (!state.dragging) return;
+        const topZone = 110;
+        const bottomZone = window.innerHeight - 135;
+        let delta = 0;
+        if (lastClientY < topZone) {
+          delta = -Math.ceil(((topZone - lastClientY) / topZone) * 12);
+        } else if (lastClientY > bottomZone) {
+          delta = Math.ceil(((lastClientY - bottomZone) / 135) * 12);
+        }
+        if (delta !== 0) {
+          window.scrollBy(0, delta);
+          repositionPlaceholder(lastClientY);
+        }
+        autoScrollRaf = requestAnimationFrame(stepAutoScroll);
+      };
+      autoScrollRaf = requestAnimationFrame(stepAutoScroll);
+
+      const onPointerMove = (moveEvt) => {
+        if (!state.dragging) return;
+        moveEvt.preventDefault();
+        lastClientY = moveEvt.clientY;
+        li.style.top = rect.top + (moveEvt.clientY - startY) + 'px';
+        repositionPlaceholder(moveEvt.clientY);
+      };
+
+      const finishDrag = (endEvt) => {
+        if (!state.dragging) return;
+        state.dragging = false;
+        if (autoScrollRaf) cancelAnimationFrame(autoScrollRaf);
+
+        handle.removeEventListener('pointermove', onPointerMove);
+        handle.removeEventListener('pointerup', finishDrag);
+        handle.removeEventListener('pointercancel', finishDrag);
+        try {
+          handle.releasePointerCapture(endEvt.pointerId);
+        } catch (_) {}
+
+        // Repose la carte à son nouvel emplacement
+        li.classList.remove('dragging');
+        li.style.position = '';
+        li.style.top = '';
+        li.style.left = '';
+        li.style.width = '';
+        li.style.zIndex = '';
+        li.style.margin = '';
+
+        if (placeholder.parentNode === listEl) {
+          listEl.insertBefore(li, placeholder);
+          placeholder.remove();
+        }
+
+        const nextOrder = Array.from(listEl.children).map((el) => el.dataset.id);
+        const changed =
+          nextOrder.length === initialOrder.length &&
+          nextOrder.some((id, idx) => id !== initialOrder[idx]);
+
+        if (changed) {
+          handleReorderUnchecked(nextOrder);
+        }
+      };
+
+      handle.addEventListener('pointermove', onPointerMove);
+      handle.addEventListener('pointerup', finishDrag);
+      handle.addEventListener('pointercancel', finishDrag);
+    });
+  }
+
+  async function handleReorderUnchecked(orderedIds) {
+    const backup = state.list.items.map((it) => ({ ...it }));
+    const rank = new Map();
+    orderedIds.forEach((id, idx) => rank.set(id, idx));
+    const total = orderedIds.length;
+    const base = 1000;
+
+    state.list.items.forEach((it) => {
+      if (rank.has(it.id)) {
+        it.sort = base + (total - rank.get(it.id)) * 100;
+      }
+    });
+    state.list.items.sort((a, b) => (b.sort || 0) - (a.sort || 0));
+    renderList();
+
+    try {
+      els.syncStatus.textContent = 'Enregistrement de l’ordre…';
+      const res = await storage.reorderItems(orderedIds);
+      if (res && res.list && !state.dragging && !state.pendingDelete) {
+        state.list = res.list;
+        renderList();
+      }
+      els.syncStatus.textContent = formatSyncTime(state.list.updated_at);
+    } catch (err) {
+      state.list.items = backup;
+      renderList();
+      if (err instanceof AuthRequiredError) openPinModal();
+      else showToast(err.message || "Impossible d'enregistrer le nouvel ordre.");
+    }
   }
 
   function renderList() {
@@ -1183,6 +1364,7 @@
         !dictation.isListening &&
         !state.editingItemId &&
         !state.pendingDelete &&
+        !state.dragging &&
         Object.keys(state.pendingQtyUpdates).length === 0 &&
         storage.config.mode !== 'demo'
       ) {
@@ -1197,6 +1379,7 @@
       } else if (
         document.visibilityState === 'visible' &&
         !state.pendingDelete &&
+        !state.dragging &&
         Object.keys(state.pendingQtyUpdates).length === 0 &&
         storage.config.mode !== 'demo'
       ) {

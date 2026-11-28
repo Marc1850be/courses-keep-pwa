@@ -176,6 +176,19 @@ def uncheck_all() -> dict:
         raise HTTPException(status_code=500, detail=f"Erreur serveur : {exc}") from exc
 
 
+class ReorderItemsPayload(BaseModel):
+    ids: list[str] = Field(..., min_length=1)
+
+
+@app.post("/api/items/reorder", dependencies=[Depends(verify_family_pin)])
+def reorder_items(payload: ReorderItemsPayload) -> dict:
+    try:
+        return store.reorder_items(payload.ids)
+    except Exception as exc:
+        logger.exception("Erreur lors du réordonnancement de la liste")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur : {exc}") from exc
+
+
 # Servir la PWA directement depuis le même serveur (pratique pour HTTPS + Android)
 PWA_DIR = Path(os.getenv("PWA_DIR", Path(__file__).resolve().parent.parent / "pwa"))
 

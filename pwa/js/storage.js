@@ -473,6 +473,39 @@
       if (res.list) saveCachedList(res.list);
       return res;
     }
+
+    async reorderItems(orderedIds) {
+      if (!Array.isArray(orderedIds) || orderedIds.length === 0) return { list: null };
+
+      if (this.config.mode === 'demo') {
+        const data = loadDemoData();
+        const rank = new Map();
+        orderedIds.forEach((id, idx) => rank.set(id, idx));
+        const total = orderedIds.length;
+        const base = 1000;
+        data.items.forEach((it) => {
+          if (rank.has(it.id)) {
+            it.sort = base + (total - rank.get(it.id)) * 100;
+          }
+        });
+        data.items.sort((a, b) => (b.sort || 0) - (a.sort || 0));
+        saveDemoData(data);
+        return { reordered: orderedIds.length, list: data };
+      }
+
+      if (this.config.mode === 'apps-script') {
+        const res = await this._gasPost({ action: 'reorder', ids: orderedIds });
+        if (res.list) saveCachedList(res.list);
+        return res;
+      }
+
+      const res = await this._keepFetch('/api/items/reorder', {
+        method: 'POST',
+        body: JSON.stringify({ ids: orderedIds }),
+      });
+      if (res.list) saveCachedList(res.list);
+      return res;
+    }
   }
 
   global.CoursesStorage = {
